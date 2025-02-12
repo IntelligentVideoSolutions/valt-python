@@ -6,7 +6,7 @@
 import json
 import http.client, urllib.error, urllib.request, urllib.parse
 import os, ssl, time, threading
-import logging
+import logging, sys
 
 class VALT:
 	def __init__(self, valt_address, valt_username, valt_password, timeout=5,logpath="ivs.log", **kwargs):
@@ -23,7 +23,9 @@ class VALT:
 			self.logger = logging.getLogger("kivy").getChild(__name__)
 		else:
 			self.logger = logging.getLogger(__name__)
-		# self.log_level("info")
+			#logging.basicConfig(filename=logpath, level=logging.DEBUG)
+			logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt='%Y-%m-%d %H:%M:%S', handlers=[logging.FileHandler(logpath), logging.StreamHandler()])
+			# logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 		self.username = valt_username
 		self.password = valt_password
 		self.success_reauth_time = 28800
@@ -1039,7 +1041,7 @@ class VALT:
 			self.errormsg = "An Unknown Error Occurred"
 
 	def reauthenticate(self, reauthtime):
-		self.logger.info(__name__ + ":" + "Next authentication attempt in " + str(reauthtime) + " seconds")
+		self.logger.info(__name__ + ":" + " Next authentication attempt in " + str(reauthtime) + " seconds")
 		if hasattr(self, 'reauth'):
 			self.reauth.cancel()
 		self.reauth = threading.Timer(reauthtime, self.auth)
