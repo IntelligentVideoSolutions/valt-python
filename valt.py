@@ -6,7 +6,7 @@
 import json
 import http.client, urllib.error, urllib.request, urllib.parse
 import os, ssl, time, threading
-import logging, sys
+import logging
 
 class VALT:
 	def __init__(self, valt_address, valt_username, valt_password, timeout=5,logpath="ivs.log", **kwargs):
