@@ -418,7 +418,7 @@ class VALT:
 				elif self.version[0] == "5":
 					url = self.baseurl + 'rooms/' + str(room) + '/record/markers' + '?access_token=' + self.accesstoken
 				else:
-					elf.logger.error(__name__ + ": Unable to Determine VALT version")
+					self.logger.error(__name__ + ": Unable to Determine VALT version")
 					return 0
 				if self.isrecording(room):
 					markertime = self.getrecordingtime(room)
