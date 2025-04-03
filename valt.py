@@ -39,14 +39,19 @@ class VALT:
 		self.kill_threads = False
 		self.auth()
 		self._selected_room_status = 99
-		self.room_check_interval = 5
+
 		self.run_check_room_status = False
 		self._observers =  []
 
 		if 'room' in kwargs:
-			self.selected_room = kwargs['room']
+			self.selected_room = int(kwargs['room'])
 		else:
 			self.selected_room = None
+
+		if 'room_check_interval' in kwargs:
+			self.room_check_interval = int(kwargs['room'])
+		else:
+			self.room_check_interval = 5
 
 		self.start_room_check_thread()
 
