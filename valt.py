@@ -44,7 +44,10 @@ class VALT:
 		self._observers =  []
 
 		if 'room' in kwargs:
-			self.selected_room = int(kwargs['room'])
+			try:
+				self.selected_room = int(kwargs['room'])
+			except:
+				self.selected_room = None
 		else:
 			self.selected_room = None
 
