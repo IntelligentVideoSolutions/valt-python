@@ -999,7 +999,7 @@ class VALT:
 
 	def handleerror(self, e):
 		self.logger.error(__name__ + ": " + str(e))
-		if str(e) == "<urlopen error timed out>" or str(e) == "<urlopen error [Errno 11001] getaddrinfo failed>" or str(e) == "HTTP Error 400: Bad Request" or str(e) == "<urlopen error [Errno -3] Temporary failure in name resolution>" or str(e) == "<urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>":
+		if str(e) == "<urlopen error timed out>" or str(e) == "<urlopen error [Errno 11001] getaddrinfo failed>" or str(e) == "HTTP Error 400: Bad Request" or str(e) == "<urlopen error [Errno -3] Temporary failure in name resolution>" or str(e) == "<urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>" or str(e) == "<urlopen error _ssl.c:989: The handshake operation timed out>":
 			self.errormsg = "Server Address Unreachable"
 			self.accesstoken = 0
 			self.reauthenticate(self.failure_reauth_time)
@@ -1047,7 +1047,8 @@ class VALT:
 			self.errormsg = "Invalid Room ID"
 		else:
 			self.errormsg = "An Unknown Error Occurred"
-
+			self.accesstoken = 0
+			self.reauthenticate(self.failure_reauth_time)
 	def reauthenticate(self, reauthtime):
 		self.logger.info(__name__ + ":" + " Next authentication attempt in " + str(reauthtime) + " seconds")
 		if hasattr(self, 'reauth'):
