@@ -8,7 +8,6 @@ import http.client, urllib.error, urllib.request, urllib.parse
 import os, ssl, time, threading
 import logging
 
-
 class VALT:
 	def __init__(self, valt_address, valt_username, valt_password, timeout=15,logpath="ivs.log", **kwargs):
 		if (not os.environ.get('PYTHONHTTPSVERIFY', '') and getattr(ssl, '_create_unverified_context', None)):
