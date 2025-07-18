@@ -9,7 +9,7 @@ import os, ssl, time, threading
 import logging
 
 class VALT:
-	def __init__(self, valt_address, valt_username, valt_password, timeout=15,logpath="ivs.log", **kwargs):
+	def __init__(self, valt_address, valt_username, valt_password, timeout=5,logpath="ivs.log", **kwargs):
 		if (not os.environ.get('PYTHONHTTPSVERIFY', '') and getattr(ssl, '_create_unverified_context', None)):
 			ssl._create_default_https_context = ssl._create_unverified_context
 		if valt_address != "None" and valt_address != "" and valt_address is not None:
