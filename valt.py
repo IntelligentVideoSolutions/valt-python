@@ -7,9 +7,12 @@ import json
 import http.client, urllib.error, urllib.request, urllib.parse
 import os, ssl, time, threading
 import logging
+from tempfile import template
+from venv import logger
+
 
 class VALT:
-	def __init__(self, valt_address, valt_username, valt_password, timeout=5,logpath="ivs.log", **kwargs):
+	def __init__(self, valt_address, valt_username, valt_password, timeout=15,logpath="ivs.log", **kwargs):
 		if (not os.environ.get('PYTHONHTTPSVERIFY', '') and getattr(ssl, '_create_unverified_context', None)):
 			ssl._create_default_https_context = ssl._create_unverified_context
 		if valt_address != "None" and valt_address != "" and valt_address is not None:
@@ -64,129 +67,59 @@ class VALT:
 		# Sets accesstoken value to 0 if the authentication attempt fails.
 		if self.username != "None" and self.username != "" and self.username is not None and self.password != "None" and self.password != "" and self.password is not None and self.baseurl is not None:
 			values = {"username": self.username, "password": self.password}
-			params = json.dumps(values).encode('utf-8')
 			self.logger.debug(__name__ + ": " + self.baseurl)
 			self.logger.debug(__name__ + ": " + self.username)
-
+			url = self.baseurl + 'login'
+			data = self.send_to_valt(url, values=values)
 			self.lastauthtime = time.time()
-			try:
-				req = urllib.request.Request(self.baseurl + 'login')
-				req.add_header('Content-Type', 'application/json')
-				response = urllib.request.urlopen(req, params, timeout=self.httptimeout)
-			except urllib.error.HTTPError as e:
-				self.accesstoken = 0
-				self.logger.error(__name__ + ": " + "Authentication FAILED")
-				self.handleerror(e)
-			# return 0
-			except urllib.error.URLError as e:
-				self.accesstoken = 0
-				self.logger.error(__name__ + ": " + "Authentication FAILED")
-				self.handleerror(e)
-			# return 0
-			except http.client.HTTPException as e:
-				self.accesstoken = 0
-				self.logger.error(__name__ + ": " + "Authentication FAILED")
-				self.handleerror(e)
-			# return 0
-			except Exception as e:
-				self.accesstoken = 0
-				self.logger.error(__name__ + ": " + "Authentication FAILED")
-				self.handleerror(e)
-			# return 0
+			if type(data).__name__ == "dict":
+				self.accesstoken = data['data']['access_token']
+				self.errormsg = None
+				self.logger.info(__name__ + ": " + "Authenticated to VALT")
+				self.version = self.getversion()
+				self.logger.info(__name__ + ": " + "Valt Version: " + self.version)
+				self.reauthenticate(self.success_reauth_time)
 			else:
-				try:
-					data = json.load(response)
-				except Exception as e:
-					self.handleerror(e)
-				else:
-					self.accesstoken = data['data']['access_token']
-					self.errormsg = None
-					self.logger.info(__name__ + ": " + "Authenticated to VALT")
-					self.version = self.getversion()
-					self.logger.info(__name__ + ": " + "Valt Version: " + self.version)
-					self.reauthenticate(self.success_reauth_time)
+				self.logger.error(__name__ + ": " + "Authentication FAILED")
 
 	def isrecording(self, room):
 		# Function to check if the specified room is currently recording
 		# Returns true if the specified room is recording
 		# Returns False if the room is not recording
-		# Returns 2 if an error is encountered
-		# Returns 99 if not currently authenticated to VALT
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
 			url = self.baseurl + 'rooms/info/' + str(room) + '?access_token=' + self.accesstoken
-			try:
-				req = urllib.request.Request(url)
-				# req.add_header('Content-Type', 'application/json')
-				response = urllib.request.urlopen(req, timeout=self.httptimeout)
-			except urllib.error.HTTPError as e:
-				self.handleerror(e)
-				return 2
-			except urllib.error.URLError as e:
-				self.handleerror(e)
-				return 2
-			except http.client.HTTPException as e:
-				self.handleerror(e)
-				return 2
-			except Exception as e:
-				self.handleerror(e)
-				return 2
+			data = self.send_to_valt(url)
+			if type(data).__name__ == "dict":
+				return data['data']['has_recording']
 			else:
-				try:
-					data = json.load(response)
-				except Exception as e:
-					self.handleerror(e)
-					return 2
-				else:
-					return data['data']['has_recording']
+				return 0
 
 	def getrecordingid(self, room):
 		# Function to get the current active recording id in the specified room
-		# Returns true if the specified room is recording
-		# Returns False if the room is not recording
-		# Returns 2 if an error is encountered
-		# Returns 99 if not currently authenticated to VALT
+		# Returns recording id if currently recording
+		# Returns 0 if the room is not recording
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
 			url = self.baseurl + 'rooms/info/' + str(room) + '?access_token=' + self.accesstoken
-			try:
-				req = urllib.request.Request(url)
-				# req.add_header('Content-Type', 'application/json')
-				response = urllib.request.urlopen(req, timeout=self.httptimeout)
-			except urllib.error.HTTPError as e:
-				self.handleerror(e)
-				return 0
-			except urllib.error.URLError as e:
-				self.handleerror(e)
-				return 0
-			except http.client.HTTPException as e:
-				self.handleerror(e)
-				return 0
-			except Exception as e:
-				self.handleerror(e)
-				return 0
-			else:
-				try:
-					data = json.load(response)
-				except Exception as e:
-					self.handleerror(e)
-					return 0
+			data = self.send_to_valt(url)
+			# print data
+			if type(data).__name__ == "dict":
+				if "recording" in data['data'].keys():
+					return data['data']['recording']['id']
 				else:
-					# print data
-					if "recording" in data['data'].keys():
-						return data['data']['recording']['id']
-					else:
-						self.handleerror("No Recording")
-						return 0
+					self.handleerror("No Recording")
+					return 0
+			else:
+				return 0
 
 	def startrecording(self, room, name, **kwargs):
 		# Function to start recording in the specified room.
 		# Returns recording id on success and 0 on failure.
-		# Returns 99 if not currently authenticated to VALT
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
 			if self.isrecording(room) != True:
 				if 'author' in kwargs:
@@ -195,37 +128,17 @@ class VALT:
 					values = {"name": name}
 
 				url = self.baseurl + 'rooms/' + str(room) + '/record/start' + '?access_token=' + self.accesstoken
-				params = json.dumps(values).encode('utf-8')
-				try:
-					req = urllib.request.Request(url)
-					req.add_header('Content-Type', 'application/json')
-					response = urllib.request.urlopen(req, params, timeout=self.httptimeout)
-				except urllib.error.HTTPError as e:
-					self.handleerror(e)
-					return 0
-				except urllib.error.URLError as e:
-					self.handleerror(e)
-					return 0
-				except http.client.HTTPException as e:
-					self.handleerror(e)
-					return 0
-				except Exception as e:
-					self.handleerror(e)
-					return 0
+				data = self.send_to_valt(url,values=values)
+				if 'author' in kwargs:
+					self.logger.info(__name__ + ": " + "Recording " + name + " started in " + str(self.getroomname(room)) + " by " + str(self.getusername(kwargs['author'])))
 				else:
-					if 'author' in kwargs:
-						self.logger.info(__name__ + ": " + "Recording " + name + " started in " + str(self.getroomname(room)) + " by " + str(self.getusername(kwargs['author'])))
-					else:
-						self.logger.info(__name__ + ": " + "Recording " + name + " started in " + str(self.getroomname(room)))
-					try:
-						data = json.load(response)
-					except Exception as e:
-						self.handleerror(e)
-						return 0
-					else:
-						if room == self.selected_room:
-							self.selected_room_status = 2
-						return data['data']['id']
+					self.logger.info(__name__ + ": " + "Recording " + name + " started in " + str(self.getroomname(room)))
+				if room == self.selected_room:
+					self.selected_room_status = 2
+				if type(data).__name__ == "dict":
+					return data['data']['id']
+				else:
+					return 0
 			else:
 				self.handleerror("Room Already Recording")
 				return 0
@@ -235,41 +148,20 @@ class VALT:
 		# Returns recording id on success and 0 on failure.
 		# Returns 99 if not currently authenticated to VALT
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
 			if self.isrecording(room) == True:
 				url = self.baseurl + 'rooms/' + str(room) + '/record/stop' + '?access_token=' + self.accesstoken
 
 				values = {"nothing": "nothing"}
-				params = json.dumps(values).encode('utf-8')
-				try:
-					req = urllib.request.Request(url)
-					req.add_header('Content-Type', 'application/json')
-					response = urllib.request.urlopen(req, params, timeout=self.httptimeout)
-				except urllib.error.HTTPError as e:
-					self.handleerror(e)
-					return 0
-				except urllib.error.URLError as e:
-					self.handleerror(e)
-					return 0
-				except http.client.HTTPException as e:
-					self.handleerror(e)
-					return 0
-				except Exception as e:
-					self.handleerror(e)
-					return 0
-				else:
-					self.logger.info(__name__ + ": " + "Recording stopped in " + str(self.getroomname(room)))
-					try:
-						data = json.load(response)
-					except Exception as e:
-						self.handleerror(e)
-						return 0
-					else:
-						# print data
-						if room == self.selected_room:
-							self.selected_room_status = 1
+				data = self.send_to_valt(url, values=values)
+				self.logger.info(__name__ + ": " + "Recording stopped in " + str(self.getroomname(room)))
+				if room == self.selected_room:
+					self.selected_room_status = 1
+				if type(data).__name__ == "dict":
 						return data['data']['id']
+				else:
+						return 0
 			else:
 				self.handleerror("No Recording")
 				return 0
@@ -279,40 +171,17 @@ class VALT:
 		# Returns recording id on success and 0 on failure.
 		# Returns 99 if not currently authenticated to VALT
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
 			if self.isrecording(room) == True:
 				if self.ispaused(room) != True:
 					url = self.baseurl + 'rooms/' + str(room) + '/record/pause' + '?access_token=' + self.accesstoken
 					values = {"nothing": "nothing"}
-					params = json.dumps(values).encode('utf-8')
-					try:
-						req = urllib.request.Request(url)
-						req.add_header('Content-Type', 'application/json')
-						response = urllib.request.urlopen(req, params, timeout=self.httptimeout)
-					except urllib.error.HTTPError as e:
-						self.handleerror(e)
-						return 0
-					except urllib.error.URLError as e:
-						self.handleerror(e)
-						return 0
-					except http.client.HTTPException as e:
-						self.handleerror(e)
-						return 0
-					except Exception as e:
-						self.handleerror(e)
-						return 0
-					else:
-						self.logger.info(__name__ + ": " + "Recording paused in " + str(self.getroomname(room)))
-						try:
-							data = json.load(response)
-						except Exception as e:
-							self.handleerror(e)
-							return 0
-						else:
-							if room == self.selected_room:
-								self.selected_room_status = 3
-							return data['data']['id']
+					data = self.send_to_valt(url, values=values)
+					self.logger.info(__name__ + ": " + "Recording paused in " + str(self.getroomname(room)))
+					if room == self.selected_room:
+						self.selected_room_status = 3
+					return data['data']['id']
 				else:
 					self.handleerror("Room Paused")
 					return 0
@@ -325,40 +194,17 @@ class VALT:
 		# Returns recording id on success and 0 on failure.
 		# Returns 99 if not currently authenticated to VALT
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
 			if self.isrecording(room) == True:
 				if self.ispaused(room) == True:
 					url = self.baseurl + 'rooms/' + str(room) + '/record/resume' + '?access_token=' + self.accesstoken
 					values = {"nothing": "nothing"}
-					params = json.dumps(values).encode('utf-8')
-					try:
-						req = urllib.request.Request(url)
-						req.add_header('Content-Type', 'application/json')
-						response = urllib.request.urlopen(req, params, timeout=self.httptimeout)
-					except urllib.error.HTTPError as e:
-						self.handleerror(e)
-						return 0
-					except urllib.error.URLError as e:
-						self.handleerror(e)
-						return 0
-					except http.client.HTTPException as e:
-						self.handleerror(e)
-						return 0
-					except Exception as e:
-						self.handleerror(e)
-						return 0
-					else:
-						self.logger.info(__name__ + ": " + "Recording resumed in " + str(self.getroomname(room)))
-						try:
-							data = json.load(response)
-						except Exception as e:
-							self.handleerror(e)
-							return 0
-						else:
-							if room == self.selected_room:
-								self.selected_room_status = 2
-							return data['data']['id']
+					data = self.send_to_valt(url, values=values)
+					self.logger.info(__name__ + ": " + "Recording resumed in " + str(self.getroomname(room)))
+					if room == self.selected_room:
+						self.selected_room_status = 2
+					return data['data']['id']
 				else:
 					self.handleerror("Room Not Paused")
 					return 0
@@ -366,63 +212,24 @@ class VALT:
 				self.handleerror("No Recording")
 				return 0
 
-	def addmarker(self, room, markername, color="red"):
-		# Function to add a marker current recording in specified room.
-		# Returns 99 if not currently authenticated to VALT
-		# Returns 1 if successful.
-		# Returns 0 on failure.
-		if self.accesstoken == 0:
-			return 99
-		else:
-			if self.isrecording(room) == True:
-				url = self.baseurl + 'rooms/' + str(room) + '/record/markers' + '?access_token=' + self.accesstoken
-				if self.isrecording(room):
-					markertime = self.getrecordingtime(room)
-					if markertime > 0:
-						values = {"event": markername, "time": markertime, "color": color}
-						params = json.dumps(values).encode('utf-8')
-						self.logger.debug(__name__ + ":" + url)
-						self.logger.debug(__name__ + ":" + str(params))
-						try:
-							req = urllib.request.Request(url)
-							req.add_header('Content-Type', 'application/json')
-							response = urllib.request.urlopen(req, params, timeout=self.httptimeout)
-						except urllib.error.HTTPError as e:
-							self.handleerror(e)
-							return 0
-						except urllib.error.URLError as e:
-							self.handleerror(e)
-							return 0
-						except http.client.HTTPException as e:
-							self.handleerror(e)
-							return 0
-						except Exception as e:
-							self.handleerror(e)
-							return 0
-						else:
-							self.logger.info(__name__ + ": " + "Marker " + markername + " added in " + str(self.getroomname(room)))
-							try:
-								data = json.load(response)
-							except Exception as e:
-								self.handleerror(e)
-								return 0
-							else:
-								return 1
-			else:
-				self.handleerror("No Recording")
-				return 0
-
-	def addcomment(self, room, markername, color="red"):
+	def addcomment(self, room, markername, color="red",**kwargs):
 		# Function to add a comment current recording in specified room.
-		# Returns 99 if not currently authenticated to VALT
 		# Returns 1 if successful.
 		# Returns 0 on failure.
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
 			if self.isrecording(room) == True:
+				if 'template_id' in kwargs:
+					template_id = kwargs['template_id']
+				else:
+					template_id = 1
+				if 'template_data' in kwargs:
+					template_data = kwargs['template_data']
+				else:
+					template_data = []
 				if self.version[0] == "6":
-					url = self.baseurl + 'rooms/' + str(room) + '/record/comments' + '?access_token=' + self.accesstoken
+					url = self.baseurl + 'comment?access_token=' + self.accesstoken
 				elif self.version[0] == "5":
 					url = self.baseurl + 'rooms/' + str(room) + '/record/markers' + '?access_token=' + self.accesstoken
 				else:
@@ -431,35 +238,13 @@ class VALT:
 				if self.isrecording(room):
 					markertime = self.getrecordingtime(room)
 					if markertime > 0:
-						values = {"event": markername, "time": markertime, "color": color}
-						params = json.dumps(values).encode('utf-8')
-						self.logger.debug(__name__ + ":" + url)
-						self.logger.debug(__name__ + ":" + str(params))
-						try:
-							req = urllib.request.Request(url)
-							req.add_header('Content-Type', 'application/json')
-							response = urllib.request.urlopen(req, params, timeout=self.httptimeout)
-						except urllib.error.HTTPError as e:
-							self.handleerror(e)
-							return 0
-						except urllib.error.URLError as e:
-							self.handleerror(e)
-							return 0
-						except http.client.HTTPException as e:
-							self.handleerror(e)
-							return 0
-						except Exception as e:
-							self.handleerror(e)
-							return 0
-						else:
-							self.logger.info(__name__ + ": " + "Comment " + markername + " added in " + str(self.getroomname(room)))
-							try:
-								data = json.load(response)
-							except Exception as e:
-								self.handleerror(e)
-								return 0
-							else:
-								return 1
+						if self.version[0] == "6":
+							values ={"recordTime": markertime, "recordId": self.getrecordingid(room), "template":{"id": template_id, "data":template_data, "name": markername}}
+						elif self.version[0] == "5":
+							values = {"event": markername, "time": markertime, "color": color}
+						data = self.send_to_valt(url, values=values)
+						self.logger.info(__name__ + ": " + "Comment " + markername + " added in " + str(self.getroomname(room)))
+						return 1
 			else:
 				self.handleerror("No Recording")
 				return 0
@@ -468,36 +253,16 @@ class VALT:
 		# Function to add a marker current recording in specified room.
 		# Returns current time index on sucess.
 		# Returns 0 on failure.
-		# Returns 99 if not currently authenticated to VALT
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
 			if self.isrecording(room) == True:
 				url = self.baseurl + 'rooms/info/' + str(room) + '?access_token=' + self.accesstoken
-				try:
-					req = urllib.request.Request(url)
-					# req.add_header('Content-Type', 'application/json')
-					response = urllib.request.urlopen(req, timeout=self.httptimeout)
-				except urllib.error.HTTPError as e:
-					self.handleerror(e)
-					return 0
-				except urllib.error.URLError as e:
-					self.handleerror(e)
-					return 0
-				except http.client.HTTPException as e:
-					self.handleerror(e)
-					return 0
-				except Exception as e:
-					self.handleerror(e)
-					return 0
+				data = self.send_to_valt(url)
+				if type(data).__name__ == "dict":
+					return data['data']['recording']['time']
 				else:
-					try:
-						data = json.load(response)
-					except Exception as e:
-						self.handleerror(e)
-						return 0
-					else:
-						return data['data']['recording']['time']
+					return 0
 			else:
 				self.handleerror("No Recording")
 				return 0
@@ -505,76 +270,32 @@ class VALT:
 	def ispaused(self, room):
 		# Function to check if specified room is currently recording and paused.
 		# Returns true if room is currently paused
-		# Returns 99 if not currently authenticated to VALT
+
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
 			url = self.baseurl + 'rooms/' + str(room) + '/status?access_token=' + self.accesstoken
-			try:
-				req = urllib.request.Request(url)
-				# req.add_header('Content-Type', 'application/json')
-				response = urllib.request.urlopen(req, timeout=self.httptimeout)
-			except urllib.error.HTTPError as e:
-				self.handleerror(e)
-				return 0
-			except urllib.error.URLError as e:
-				self.handleerror(e)
-				return 0
-			except http.client.HTTPException as e:
-				self.handleerror(e)
-				return 0
-			except Exception as e:
-				self.handleerror(e)
-				return 0
-			else:
-				try:
-					data = json.load(response)
-				except Exception as e:
-					self.handleerror(e)
-					return 0
+			data = self.send_to_valt(url)
+			if type(data).__name__ == "dict":
+				if data['data']['status'] == 'paused':
+					return True
 				else:
-					if data['data']['status'] == 'paused':
-						return True
-					else:
-						return False
+					return False
 
 	def islocked(self, room):
 		# Function to check if specified room is currently locked.
 		# Returns true if room is currently locked.
 		# Returns 99 if not currently authenticated to VALT
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
 			url = self.baseurl + 'rooms/' + str(room) + '/status?access_token=' + self.accesstoken
-
-			try:
-				req = urllib.request.Request(url)
-				# req.add_header('Content-Type', 'application/json')
-				response = urllib.request.urlopen(req, timeout=self.httptimeout)
-			except urllib.error.HTTPError as e:
-				self.handleerror(e)
-				return 0
-			except urllib.error.URLError as e:
-				self.handleerror(e)
-				return 0
-			except http.client.HTTPException as e:
-				self.handleerror(e)
-				return 0
-			except Exception as e:
-				self.handleerror(e)
-				return 0
-			else:
-				try:
-					data = json.load(response)
-				except Exception as e:
-					self.handleerror(e)
-					return 0
+			data = self.send_to_valt(url)
+			if type(data).__name__ == "dict":
+				if data['data']['status'] == 'locked':
+					return True
 				else:
-					# print data
-					if data['data']['status'] == 'locked':
-						return True
-					else:
-						return False
+					return False
 
 	def getcameras(self, room):
 		# Function to return a list of all cameras in the specified room.
@@ -582,33 +303,10 @@ class VALT:
 		# Returns 0 on failure.
 		# Returns 99 if not currently authenticated to VALT
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
 			url = self.baseurl + 'admin/rooms/' + str(room) + '/cameras?access_token=' + self.accesstoken
-			try:
-				req = urllib.request.Request(url)
-				# req.add_header('Content-Type', 'application/json')
-				response = urllib.request.urlopen(req, timeout=self.httptimeout)
-			except urllib.error.HTTPError as e:
-				self.handleerror(e)
-				return 0
-			except urllib.error.URLError as e:
-				self.handleerror(e)
-				return 0
-			except http.client.HTTPException as e:
-				self.handleerror(e)
-				return 0
-			except Exception as e:
-				self.handleerror(e)
-				return 0
-			else:
-				try:
-					data = json.load(response)
-				except Exception as e:
-					self.handleerror(e)
-					return 0
-				else:
-					pass
+			data = self.send_to_valt(url)
 			if data['data']['cameras']:
 				return data['data']['cameras']
 			else:
@@ -619,35 +317,11 @@ class VALT:
 		# Function to return a list of all rooms.
 		# Returns a list of rooms if successful. Each list item is actually a dictionary containing information about that room.
 		# Returns 0 on failure.
-		# Returns 99 if not currently authenticated to VALT
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
 			url = self.baseurl + 'rooms/info?access_token=' + self.accesstoken
-			try:
-				req = urllib.request.Request(url)
-				# req.add_header('Content-Type', 'application/json')
-				response = urllib.request.urlopen(req, timeout=self.httptimeout)
-			except urllib.error.HTTPError as e:
-				self.handleerror(e)
-				return 0
-			except urllib.error.URLError as e:
-				self.handleerror(e)
-				return 0
-			except http.client.HTTPException as e:
-				self.handleerror(e)
-				return 0
-			except Exception as e:
-				self.handleerror(e)
-				return 0
-			else:
-				try:
-					data = json.load(response)
-				except Exception as e:
-					self.handleerror(e)
-					return 0
-				else:
-					pass
+			data = self.send_to_valt(url)
 			if data['data']['rooms']:
 				return data['data']['rooms']
 			else:
@@ -659,36 +333,12 @@ class VALT:
 		# Returns a list of schedules if successful. Each list item is actually a list containing information about that schedule.
 		# Returns 0 on failure.
 		# Returns an empty list if no schedules exist for the specified room.
-		# Returns 99 if not currently authenticated to VALT
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
 			url = self.baseurl + 'schedule?access_token=' + self.accesstoken
 			roomsched = []
-			try:
-				req = urllib.request.Request(url)
-				# req.add_header('Content-Type', 'application/json')
-				response = urllib.request.urlopen(req, timeout=self.httptimeout)
-			except urllib.error.HTTPError as e:
-				self.handleerror(e)
-				return 0
-			except urllib.error.URLError as e:
-				self.handleerror(e)
-				return 0
-			except http.client.HTTPException as e:
-				self.handleerror(e)
-				return 0
-			except Exception as e:
-				self.handleerror(e)
-				return 0
-			else:
-				try:
-					data = json.load(response)
-				except Exception as e:
-					self.handleerror(e)
-					return 0
-				else:
-					pass
+			data = self.send_to_valt(url)
 			if data['data']['schedules']:
 				for schedule in data['data']['schedules']:
 					if schedule['room']['id'] == int(room):
@@ -713,69 +363,25 @@ class VALT:
 		# Function to return the name of the specified room.
 		# Returns 99 if not currently authenticated to VALT
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
 			url = self.baseurl + 'rooms/info/' + str(room) + '?access_token=' + self.accesstoken
-
-			try:
-				req = urllib.request.Request(url)
-				# req.add_header('Content-Type', 'application/json')
-				response = urllib.request.urlopen(req, timeout=self.httptimeout)
-			except urllib.error.HTTPError as e:
-				self.handleerror(e)
-				return 0
-			except urllib.error.URLError as e:
-				self.handleerror(e)
-				return 0
-			except http.client.HTTPException as e:
-				self.handleerror(e)
-				return 0
-			except Exception as e:
-				self.handleerror(e)
-				return 0
+			data = self.send_to_valt(url)
+			if type(data).__name__ == "dict":
+				return data['data']['name']
 			else:
-				try:
-					data = json.load(response)
-				except Exception as e:
-					self.handleerror(e)
-					return 0
-				else:
-					# print data
-					return data['data']['name']
+				return 0
 
 	def getusername(self, user):
 		# Function to return the name of the specified room.
 		# Returns 99 if not currently authenticated to VALT
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
 			url = self.baseurl + 'admin/users/' + str(user) + '?access_token=' + self.accesstoken
-
-			try:
-				req = urllib.request.Request(url)
-				# req.add_header('Content-Type', 'application/json')
-				response = urllib.request.urlopen(req, timeout=self.httptimeout)
-			except urllib.error.HTTPError as e:
-				self.handleerror(e)
-				return 0
-			except urllib.error.URLError as e:
-				self.handleerror(e)
-				return 0
-			except http.client.HTTPException as e:
-				self.handleerror(e)
-				return 0
-			except Exception as e:
-				self.handleerror(e)
-				return 0
-			else:
-				try:
-					data = json.load(response)
-				except Exception as e:
-					self.handleerror(e)
-					return 0
-				else:
-					# print data
-					return data['data']['name']
+			data = self.send_to_valt(url)
+			if type(data).__name__ == "dict":
+				return data['data']['name']
 
 	def getroomstatus(self, room):
 		# Function to return the current state of the specified room.
@@ -785,34 +391,15 @@ class VALT:
 		# Returns 3 if the room is paused.
 		# Returns 4 if the room is locked.
 		# Returns 5 if the room is prepared.
-		# Returns 99 if not currently authenticated to VALT
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		# elif not isinstance(room, int):
 		# 	self.handleerror("Invalid Room ID")
 		# 	return 0
 		else:
 			url = self.baseurl + 'rooms/' + str(room) + '/status?access_token=' + self.accesstoken
-			try:
-				req = urllib.request.Request(url)
-				# req.add_header('Content-Type', 'application/json')
-				response = urllib.request.urlopen(req, timeout=self.httptimeout)
-			except urllib.error.HTTPError as e:
-				self.handleerror(e)
-				return 0
-			except urllib.error.URLError as e:
-				self.handleerror(e)
-				return 0
-			except http.client.HTTPException as e:
-				self.handleerror(e)
-				return 0
-			except Exception as e:
-				self.handleerror(e)
-				return 0
-			else:
-				try:
-					data = json.load(response)
-					# print data
+			data = self.send_to_valt(url)
+			if type(data).__name__ == "dict":
 					if data['data']['status'] == 'available':
 						return 1
 					elif data['data']['status'] == 'recording':
@@ -826,11 +413,9 @@ class VALT:
 					else:
 						self.handleerror("Unknown Status")
 						return 0
-				except:
-					self.handleerror("Invalid Room ID")
-					return 0
-				else:
-					pass
+			else:
+				self.handleerror("Invalid Room ID")
+				return 0
 
 	def getusers(self):
 		# Function to return a list of users.
@@ -838,45 +423,23 @@ class VALT:
 		# Each list item is a dictionary with information about the user.
 		# Returns 99 if not currently authenticated to VALT
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
 			url = self.baseurl + 'admin/users?access_token=' + self.accesstoken
-			try:
-				req = urllib.request.Request(url)
-				# req.add_header('Content-Type', 'application/json')
-				response = urllib.request.urlopen(req, timeout=self.httptimeout)
-			except urllib.error.HTTPError as e:
-				self.handleerror(e)
-				return 0
-			except urllib.error.URLError as e:
-				self.handleerror(e)
-				return 0
-			except http.client.HTTPException as e:
-				self.handleerror(e)
-				return 0
-			except Exception as e:
-				self.handleerror(e)
-				return 0
+			data = self.send_to_valt(url)
+			if type(data).__name__ == "dict":
+				return data['data']
 			else:
-				try:
-					data = json.load(response)
-				except Exception as e:
-					self.handleerror(e)
-					return 0
-				else:
-					if data['data']:
-						return data['data']
-					else:
-						self.handleerror("No Users")
-						return 0
+				self.handleerror("No Users")
+				return 0
 
 	def setsharing(self, recid, **kwargs):
 		# Function changes sets sharing permission on the specified recording.
-		# Users and groups must be passed as lists, encloded in [].
+		# Users and groups must be passed as lists, enclosed in [].
 		# Returns 0 on failure.
 		# Returns 99 if not currently authenticated to VALT
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
 			if 'users' in kwargs and 'groups' in kwargs:
 				values = {"share": {"users": kwargs['users'], "groups": kwargs['groups']}}
@@ -887,73 +450,26 @@ class VALT:
 			else:
 				self.handleerror("No Users or Groups Specified")
 				return 0
-			# print(values)
 			url = self.baseurl + 'records/' + str(recid) + '/update?access_token=' + self.accesstoken
-			params = json.dumps(values).encode('utf-8')
-			# print(url)
-			try:
-				req = urllib.request.Request(url)
-				req.add_header('Content-Type', 'application/json')
-				response = urllib.request.urlopen(req, params, timeout=self.httptimeout)
-			except urllib.error.HTTPError as e:
-				self.handleerror(e)
-				return 0
-			except urllib.error.URLError as e:
-				self.handleerror(e)
-				return 0
-			except http.client.HTTPException as e:
-				self.handleerror(e)
-				return 0
-			except Exception as e:
-				self.handleerror(e)
-				return 0
-			else:
-				self.logger.info(__name__ + ": " + "Sharing Permissions Updated")
-				self.logger.debug(__name__ + ": " + str(values))
-				try:
-					data = json.load(response)
-				except Exception as e:
-					self.handleerror(e)
-					return 0
-				else:
-					# print data
-					return data['data']['id']
+			data = self.send_to_valt(url,values=values)
+			self.logger.info(__name__ + ": " + "Sharing Permissions Updated")
+			self.logger.debug(__name__ + ": " + str(values))
+			if type(data).__name__ == "dict":
+				return data['data']['id']
 
 	def lockroom(self, room):
 		# Function locks the specified room.
 		# Returns 0 on failure.
 		# Returns 99 if not currently authenticated to VALT
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		if self.getroomstatus(room) == 1 or self.getroomstatus(room) == 5:
 			url = self.baseurl + 'rooms/' + str(room) + '/lock' + '?access_token=' + self.accesstoken
 			values = {"nothing": "nothing"}
-			params = json.dumps(values).encode('utf-8')
-			try:
-				req = urllib.request.Request(url)
-				req.add_header('Content-Type', 'application/json')
-				response = urllib.request.urlopen(req, params, timeout=self.httptimeout)
-			except urllib.error.HTTPError as e:
-				self.handleerror(e)
-				return 0
-			except urllib.error.URLError as e:
-				self.handleerror(e)
-				return 0
-			except http.client.HTTPException as e:
-				self.handleerror(e)
-				return 0
-			except Exception as e:
-				self.handleerror(e)
-				return 0
-			else:
-				self.logger.info(__name__ + ": " + str(self.getroomname(room)) + " Locked")
-				try:
-					data = json.load(response)
-				except Exception as e:
-					self.handleerror(e)
-					return 0
-				else:
-					return data['data']['id']
+			data = self.send_to_valt(url, values=values)
+			self.logger.info(__name__ + ": " + str(self.getroomname(room)) + " Locked")
+			if type(data).__name__ == "dict":
+				return data['data']['id']
 		else:
 			self.handleerror("No Lock")
 			return 0
@@ -963,36 +479,14 @@ class VALT:
 		# Returns 0 on failure.
 		# Returns 99 if not currently authenticated to VALT
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		if self.islocked(room):
 			url = self.baseurl + 'rooms/' + str(room) + '/unlock' + '?access_token=' + self.accesstoken
 			values = {"nothing": "nothing"}
-			params = json.dumps(values).encode('utf-8')
-			try:
-				req = urllib.request.Request(url)
-				req.add_header('Content-Type', 'application/json')
-				response = urllib.request.urlopen(req, params, timeout=self.httptimeout)
-			except urllib.error.HTTPError as e:
-				self.handleerror(e)
-				return 0
-			except urllib.error.URLError as e:
-				self.handleerror(e)
-				return 0
-			except http.client.HTTPException as e:
-				self.handleerror(e)
-				return 0
-			except Exception as e:
-				self.handleerror(e)
-				return 0
-			else:
-				self.logger.info(__name__ + ": " + str(self.getroomname(room)) + " Unlocked")
-				try:
-					data = json.load(response)
-				except Exception as e:
-					self.handleerror(e)
-					return 0
-				else:
-					return data['data']['id']
+			data = self.send_to_valt(url, values=values)
+			self.logger.info(__name__ + ": " + str(self.getroomname(room)) + " Unlocked")
+			if type(data).__name__ == "dict":
+				return data['data']['id']
 		else:
 			self.handleerror("Not Locked")
 			return 0
@@ -1111,7 +605,7 @@ class VALT:
 		# Each list item is a dictionary with information about the user.
 		# Returns 99 if not currently authenticated to VALT
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
 			if 'search' in kwargs and 'start_date' in kwargs:
 				values = {"search": kwargs['search'], "start_date": kwargs['start_date']}
@@ -1123,38 +617,12 @@ class VALT:
 				self.handleerror("No Search Criteria Specified")
 				return 0
 			url = self.baseurl + 'records?access_token=' + self.accesstoken
-			# values = {"search" : searchstring}
-			params = json.dumps(values).encode('utf-8')
-			try:
-				req = urllib.request.Request(url)
-				req.add_header('Content-Type', 'application/json')
-				print(url)
-				print(params)
-				response = urllib.request.urlopen(req, params, timeout=self.httptimeout)
-			except urllib.error.HTTPError as e:
-				self.handleerror(e)
-				return 0
-			except urllib.error.URLError as e:
-				self.handleerror(e)
-				return 0
-			except http.client.HTTPException as e:
-				self.handleerror(e)
-				return 0
-			except Exception as e:
-				self.handleerror(e)
-				return 0
+			data = self.send_to_valt(url, values=values)
+			if data['data']:
+				return data['data']
 			else:
-				try:
-					data = json.load(response)
-				except Exception as e:
-					self.handleerror(e)
-					return 0
-				else:
-					if data['data']:
-						return data['data']
-					else:
-						self.handleerror("No Records")
-						return 0
+				self.handleerror("No Records")
+				return 0
 	def getversion(self):
 		# Function to get the current active recording id in the specified room
 		# Returns true if the specified room is recording
@@ -1162,38 +630,16 @@ class VALT:
 		# Returns 2 if an error is encountered
 		# Returns 99 if not currently authenticated to VALT
 		if self.accesstoken == 0:
-			return 99
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
 			url = self.baseurl + 'admin/general?access_token=' + self.accesstoken
-			try:
-				req = urllib.request.Request(url)
-				# req.add_header('Content-Type', 'application/json')
-				response = urllib.request.urlopen(req, timeout=self.httptimeout)
-			except urllib.error.HTTPError as e:
-				self.handleerror(e)
-				return 0
-			except urllib.error.URLError as e:
-				self.handleerror(e)
-				return 0
-			except http.client.HTTPException as e:
-				self.handleerror(e)
-				return 0
-			except Exception as e:
-				self.handleerror(e)
-				return 0
-			else:
-				try:
-					data = json.load(response)
-				except Exception as e:
-					self.handleerror(e)
-					return 0
+			data = self.send_to_valt(url)
+			if type(data).__name__ == "dict":
+				if "version" in data['data'].keys():
+					return data['data']['version']
 				else:
-					# print data
-					if "version" in data['data'].keys():
-						return data['data']['version']
-					else:
-						self.handleerror("No Version")
-						return 0
+					self.handleerror("No Version")
+					return 0
 
 	def check_room_status(self):
 		while not self.kill_threads:
@@ -1252,3 +698,56 @@ class VALT:
 		self.logger.info(__name__ + ": " + "HTTP Timeout set to " + str(new_timeout))
 		self.httptimeout = int(new_timeout)
 
+	def send_to_valt(self,url,**kwargs):
+		self.logger.debug(__name__ + ":" + str(url))
+		if 'values' in kwargs:
+			params = json.dumps(kwargs['values']).encode('utf-8')
+			self.logger.debug(__name__ + ": " + str(params))
+		try:
+			self.logger.debug(__name__ + ": " + "Sending API call")
+			req = urllib.request.Request(url)
+			if 'values' in kwargs:
+				req.add_header('Content-Type', 'application/json')
+				response = urllib.request.urlopen(req, params, timeout=self.httptimeout)
+			else:
+				response = urllib.request.urlopen(req, timeout=self.httptimeout)
+			self.logger.debug(__name__ + ":" + "Response Received")
+		except urllib.error.HTTPError as e:
+			self.accesstoken = 0
+			self.logger.error(__name__ + ": VALT API Call Failed")
+			self.handleerror(e)
+		except urllib.error.URLError as e:
+			self.accesstoken = 0
+			self.logger.error(__name__ + ": VALT API Call Failed")
+			self.handleerror(e)
+		except http.client.HTTPException as e:
+			self.accesstoken = 0
+			self.logger.error(__name__ + ": VALT API Call Failed")
+			self.handleerror(e)
+		except Exception as e:
+			self.accesstoken = 0
+			self.logger.error(__name__ + ": VALT API Call Failed")
+			self.handleerror(e)
+		else:
+			try:
+				self.logger.debug(__name__ + ": " + str(response))
+				data = json.load(response)
+			except Exception as e:
+				self.handleerror(e)
+			else:
+				self.logger.debug(__name__ + ": " + str(data))
+				return data
+
+	def get_user_with_card_number(self,cardnumber):
+		# Function returns user matching card number.
+		if self.accesstoken == 0:
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
+		else:
+			url = self.baseurl + 'admin/users' + '?access_token=' + self.accesstoken + '&cardNumber=' + str(cardnumber)
+			data = self.send_to_valt(url)
+			if type(data).__name__ == "dict":
+				if data['data']:
+					return data['data'][0]['id']
+				else:
+					self.logger.info(__name__ + ": " + "No user found with card number: " + str(cardnumber))
+					return [0]
