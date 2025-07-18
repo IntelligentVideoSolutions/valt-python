@@ -1,14 +1,12 @@
 # VALT API Python Module
-# Version 2.10
-# Last Updated: 2/10/2025
+# Version 3.00
+# Last Updated: 7/18/2025
 # Compatible with Valt Versions 5.x and probably 6.x
 
 import json
 import http.client, urllib.error, urllib.request, urllib.parse
 import os, ssl, time, threading
 import logging
-from tempfile import template
-from venv import logger
 
 
 class VALT:
