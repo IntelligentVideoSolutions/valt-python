@@ -1,5 +1,5 @@
 # VALT API Python Module
-# Version 3.00
+# Version 3.1
 # Last Updated: 7/18/2025
 # Compatible with Valt Versions 5.x and probably 6.x
 
