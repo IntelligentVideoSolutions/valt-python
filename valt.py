@@ -642,17 +642,20 @@ class VALT:
 		while not self.kill_threads:
 			self.logger.debug(__name__ + ": " + "Room Check Loop: " + str(self.run_check_room_status))
 			if self.run_check_room_status:
-				self.logger.debug(__name__ + ": " + "Room Check Loop: " + "Access Token: " + str(self.accesstoken))
-				if self.accesstoken != 0 and self.selected_room != None:
-					temp_room_status = self.getroomstatus(self.selected_room)
-					if temp_room_status != self.selected_room_status:
-						self.selected_room_status = temp_room_status
-					if temp_room_status != 0 and temp_room_status != 99 and self.errormsg != None:
-						print("Clear Error")
-						self.errormsg = None
-						self.selected_room_status = temp_room_status
-					self.logger.debug(__name__ + ": " + "Checking Room " + str(self.selected_room) + " current status is " + str(self.selected_room_status))
+				self.update_room_status()
 			time.sleep(self.room_check_interval)
+
+	def update_room_status(self):
+		self.logger.debug(__name__ + ": " + "Room Check Loop: " + "Access Token: " + str(self.accesstoken))
+		if self.accesstoken != 0 and self.selected_room != None:
+			temp_room_status = self.getroomstatus(self.selected_room)
+			if temp_room_status != self.selected_room_status:
+				self.selected_room_status = temp_room_status
+			if temp_room_status != 0 and temp_room_status != 99 and self.errormsg != None:
+				print("Clear Error")
+				self.errormsg = None
+				self.selected_room_status = temp_room_status
+			self.logger.debug(__name__ + ": " + "Checking Room " + str(self.selected_room) + " current status is " + str(self.selected_room_status))
 
 	def start_room_check_thread(self):
 		self.kill_threads = False
@@ -662,6 +665,8 @@ class VALT:
 			self.room_check_thread = threading.Thread(target=self.check_room_status)
 			self.room_check_thread.daemon = True
 			self.room_check_thread.start()
+		else:
+			self.update_room_status()
 
 	def stop_room_check_thread(self):
 		self.run_check_room_status = False
@@ -704,13 +709,17 @@ class VALT:
 			self.logger.debug(__name__ + ": " + str(params))
 		try:
 			self.logger.debug(__name__ + ": " + "Sending API call")
+			starttime = time.time()
 			req = urllib.request.Request(url)
 			if 'values' in kwargs:
 				req.add_header('Content-Type', 'application/json')
 				response = urllib.request.urlopen(req, params, timeout=self.httptimeout)
 			else:
 				response = urllib.request.urlopen(req, timeout=self.httptimeout)
-			self.logger.debug(__name__ + ":" + "Response Received")
+			endtime = time.time()
+			elapsedtime = endtime - starttime
+			self.logger.debug(__name__ + ": " + str(elapsedtime) + " seconds elapsed")
+			self.logger.debug(__name__ + ": " + "Response Received")
 		except urllib.error.HTTPError as e:
 			self.accesstoken = 0
 			self.logger.error(__name__ + ": VALT API Call Failed")
@@ -842,6 +851,86 @@ class VALT:
 			self.handleerror(e)
 			return False
 
+	def create_camera(self,camera_name,camera_ip,camera_username,camera_password,**kwargs):
+		# Function to start recording in the specified room.
+		# Returns camera id on success and 0 on failure.
+		if self.accesstoken == 0:
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
+		else:
+			values={}
+			values['name'] = camera_name
+			values['ip'] = camera_ip
+			values['device_type'] = "camera"
+			values['http_port'] = kwargs.get("camera_http",80)
+			values['rtsp_port'] = kwargs.get("camera_http",554)
+			values['username'] = camera_username
+			values['password'] = camera_password
+			values['brand'] = 1
+			values['model'] = 1
+			values['rooms'] = kwargs.get("rooms",[])
+			values['wowza'] = kwargs.get("wowza",1)
+			url = self.baseurl + 'admin/cameras?access_token=' + self.accesstoken
+			data = self.send_to_valt(url, values=values)
+			if type(data).__name__ == "dict":
+				return data['data']['id']
+			else:
+				return 0
+	def create_room(self,room_name,**kwargs):
+		if self.accesstoken == 0:
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
+		else:
+			values={}
+			values['name'] = room_name
+			values['wowza'] = kwargs.get("wowza",1)
+			url = self.baseurl + 'admin/rooms?access_token=' + self.accesstoken
+			data = self.send_to_valt(url, values=values)
+			if type(data).__name__ == "dict":
+				return data['data']['id']
+			else:
+				return 0
+	def get_user_group_info(self,group_id):
+		if self.accesstoken == 0:
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
+		else:
+			url = self.baseurl + 'admin/user_groups/' + str(group_id) + '?access_token=' + self.accesstoken
+			data = self.send_to_valt(url)
+			if type(data).__name__ == "dict":
+				return data['data']
+			else:
+				return 0
+	def get_user_group_rooms(self,group_id):
+		data = self.get_user_group_info(group_id)
+		if data != 0:
+			return data['rooms']
+
+	def update_user(self,**kwargs):
+		pass
+
+	def update_group(self,group_id,**kwargs):
+		if self.accesstoken == 0:
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
+		else:
+			url = self.baseurl + 'admin/user_groups/' + str(group_id) + '/edit?access_token=' + self.accesstoken
+			values = {}
+			if "name" in kwargs:
+				values['name'] = kwargs['name']
+			if "template" in kwargs:
+				values['template'] = kwargs['template']
+			if "max_record_duration" in kwargs:
+				values['max_record_duration'] = kwargs['max_record_duration']
+			if "rooms" in kwargs:
+				values['rooms'] = kwargs['rooms']
+			if "video_access" in kwargs:
+				values['video_access'] = kwargs['video_access']
+			if "retention" in kwargs:
+				values['retention'] = kwargs['retention']
+			if "rights" in kwargs:
+				values['rights'] = kwargs['rights']
+			data = self.send_to_valt(url,values=values)
+			if type(data).__name__ == "dict":
+				return data['data']
+			else:
+				return 0
 	def get_camera_presets(self, camera_id):
 		# Function to retrieve presets for a given camera.
 		# Returns a list of preset dicts or 0 on failure.
