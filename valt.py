@@ -1,12 +1,14 @@
 # VALT API Python Module
-# Version 3.1
-# Last Updated: 7/18/2025
-# Compatible with Valt Versions 5.x and probably 6.x
+# Version 3.1.1
+# Last Updated: 8/19/2025
+# Compatible with Valt Versions 6.3+
 
 import json
 import http.client, urllib.error, urllib.request, urllib.parse
 import os, ssl, time, threading
 import logging
+from logging import Logger
+
 
 class VALT:
 	def __init__(self, valt_address, valt_username, valt_password, timeout=5,logpath="ivs.log", **kwargs):
@@ -536,6 +538,8 @@ class VALT:
 			self.errormsg = "Room Cannot Be Locked"
 		elif str(e) == "Invalid Room ID":
 			self.errormsg = "Invalid Room ID"
+		elif str(e) == "Unable to apply preset":
+			pass
 		else:
 			self.errormsg = "An Unknown Error Occurred"
 			self.accesstoken = 0
@@ -967,7 +971,7 @@ class VALT:
 
 	def apply_camera_preset(self, camera_id, preset_id):
 		# Function to apply an existing preset to a given camera.
-		# Returns preset ID or 0 on failure.
+		# Returns 1 on success or 0 on failure.
 		if self.accesstoken == 0:
 			self.logger.error(__name__ + ": Not Currently Authenticated to VALT")
 			return 0
@@ -975,9 +979,9 @@ class VALT:
 		url = self.baseurl + f'presets/{camera_id}/apply?access_token=' + self.accesstoken
 		values = {"preset": preset_id}
 		data = self.send_to_valt(url, values=values)
-		if isinstance(data, dict) and 'id' in data:
+		if isinstance(data, dict) and 'message' in data:
 			self.logger.info(__name__ + f": Preset {preset_id} applied to camera {camera_id}")
-			return data['id']
+			return 1
 		else:
 			self.handleerror("Unable to apply preset")
 			return 0
