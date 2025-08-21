@@ -7,7 +7,6 @@ import json
 import http.client, urllib.error, urllib.request, urllib.parse
 import os, ssl, time, threading
 import logging
-from logging import Logger
 
 
 class VALT:
