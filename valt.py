@@ -707,6 +707,9 @@ class VALT:
 
 	def send_to_valt(self,url,**kwargs):
 		self.logger.debug(__name__ + ":" + str(url))
+		ctx = ssl.create_default_context()
+		ctx.check_hostname = False
+		ctx.verify_mode = ssl.CERT_NONE
 		if 'values' in kwargs:
 			params = json.dumps(kwargs['values']).encode('utf-8')
 			self.logger.debug(__name__ + ": " + str(params))
@@ -716,9 +719,9 @@ class VALT:
 			req = urllib.request.Request(url)
 			if 'values' in kwargs:
 				req.add_header('Content-Type', 'application/json')
-				response = urllib.request.urlopen(req, params, timeout=self.httptimeout)
+				response = urllib.request.urlopen(req, params, timeout=self.httptimeout,context=ctx)
 			else:
-				response = urllib.request.urlopen(req, timeout=self.httptimeout)
+				response = urllib.request.urlopen(req, timeout=self.httptimeout,context=ctx)
 			endtime = time.time()
 			elapsedtime = endtime - starttime
 			self.logger.debug(__name__ + ": " + str(elapsedtime) + " seconds elapsed")
@@ -904,7 +907,12 @@ class VALT:
 	def get_user_group_rooms(self,group_id):
 		data = self.get_user_group_info(group_id)
 		if data != 0:
-			return data['rooms']
+			if 'rooms' in data.keys():
+				return data['rooms']
+			else:
+				return []
+		else:
+			return []
 
 	def update_user(self,**kwargs):
 		pass
