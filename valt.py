@@ -306,8 +306,12 @@ class VALT:
 		else:
 			url = self.baseurl + 'admin/rooms/' + str(room) + '/cameras?access_token=' + self.accesstoken
 			data = self.send_to_valt(url)
-			if data['data']['cameras']:
-				return data['data']['cameras']
+			if type(data).__name__ == "dict":
+				if data['data']['cameras']:
+					return data['data']['cameras']
+				else:
+					self.handleerror("No Cameras")
+					return 0
 			else:
 				self.handleerror("No Cameras")
 				return 0
