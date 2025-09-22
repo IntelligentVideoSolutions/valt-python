@@ -74,7 +74,7 @@ class VALT:
 				self.errormsg = None
 				self.logger.info(__name__ + ": " + "Authenticated to VALT")
 				self.version = self.getversion()
-				self.logger.info(__name__ + ": " + "Valt Version: " + self.version)
+				self.logger.info(__name__ + ": " + "Valt Version: " + str(self.version))
 				self.reauthenticate(self.success_reauth_time)
 			else:
 				self.logger.error(__name__ + ": " + "Authentication FAILED")
@@ -366,10 +366,13 @@ class VALT:
 		if self.accesstoken == 0:
 			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
-			url = self.baseurl + 'rooms/info/' + str(room) + '?access_token=' + self.accesstoken
-			data = self.send_to_valt(url)
-			if type(data).__name__ == "dict":
-				return data['data']['name']
+			if room != None and room != "" and room != "None":
+				url = self.baseurl + 'rooms/info/' + str(room) + '?access_token=' + self.accesstoken
+				data = self.send_to_valt(url)
+				if type(data).__name__ == "dict":
+					return data['data']['name']
+				else:
+					return 0
 			else:
 				return 0
 
@@ -542,6 +545,8 @@ class VALT:
 			self.errormsg = "Invalid Room ID"
 		elif str(e) == "Unable to apply preset":
 			pass
+		elif str(e) == "Unable to get camera presets":
+			pass
 		else:
 			self.errormsg = "An Unknown Error Occurred"
 			self.accesstoken = 0
@@ -556,6 +561,7 @@ class VALT:
 
 	def changeserver(self, valt_address, valt_username, valt_password):
 		if valt_address != "None" and valt_address != "" and valt_address is not None:
+			self.disconnect()
 			if valt_address.find("http", 0, 4) == -1:
 				self.baseurl = 'http://' + valt_address + '/api/v3/'
 			else:
