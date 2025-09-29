@@ -337,27 +337,31 @@ class VALT:
 		if self.accesstoken == 0:
 			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
-			url = self.baseurl + 'schedule?access_token=' + self.accesstoken
-			roomsched = []
-			data = self.send_to_valt(url)
-			if data['data']['schedules']:
-				for schedule in data['data']['schedules']:
-					if schedule['room']['id'] == int(room):
-						templist = []
-						templist.append(schedule['start_at'])
-						templist.append(schedule['stop_at'])
-						templist.append(schedule['name'])
-						roomsched.append(templist)
-				roomsched.sort()
-				if roomsched:
-					if self.errormsg == "No Schedules Currently Set Up":
-						self.errormsg = None
-					return roomsched
+			if room != "" and room != None:
+				url = self.baseurl + 'schedule?access_token=' + self.accesstoken
+				roomsched = []
+				data = self.send_to_valt(url)
+				if data['data']['schedules']:
+					for schedule in data['data']['schedules']:
+						if schedule['room']['id'] == int(room):
+							templist = []
+							templist.append(schedule['start_at'])
+							templist.append(schedule['stop_at'])
+							templist.append(schedule['name'])
+							roomsched.append(templist)
+					roomsched.sort()
+					if roomsched:
+						if self.errormsg == "No Schedules Currently Set Up":
+							self.errormsg = None
+						return roomsched
+					else:
+						self.handleerror("No Schedules")
+						return 0
 				else:
 					self.handleerror("No Schedules")
 					return 0
 			else:
-				self.handleerror("No Schedules")
+				self.handleerror("Invalid Room ID")
 				return 0
 
 	def getroomname(self, room):
