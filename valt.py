@@ -302,16 +302,20 @@ class VALT:
 		if self.accesstoken == 0:
 			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
-			url = self.baseurl + 'admin/rooms/' + str(room) + '/cameras?access_token=' + self.accesstoken
-			data = self.send_to_valt(url)
-			if type(data).__name__ == "dict":
-				if data['data']['cameras']:
-					return data['data']['cameras']
+			if self.selected_room != None:
+				url = self.baseurl + 'admin/rooms/' + str(room) + '/cameras?access_token=' + self.accesstoken
+				data = self.send_to_valt(url)
+				if type(data).__name__ == "dict":
+					if data['data']['cameras']:
+						return data['data']['cameras']
+					else:
+						self.handleerror("No Cameras")
+						return 0
 				else:
 					self.handleerror("No Cameras")
 					return 0
 			else:
-				self.handleerror("No Cameras")
+				self.handleerror("Invalid Room ID")
 				return 0
 
 	def getrooms(self):
@@ -656,6 +660,7 @@ class VALT:
 
 	def check_room_status(self):
 		while not self.kill_threads:
+			self.logger.debug(__name__ + ": Thread ID:" + str(threading.get_ident()))
 			self.logger.debug(__name__ + ": " + "Room Check Loop: " + str(self.run_check_room_status))
 			if self.run_check_room_status:
 				self.update_room_status()
@@ -668,12 +673,13 @@ class VALT:
 			if temp_room_status != self.selected_room_status:
 				self.selected_room_status = temp_room_status
 			if temp_room_status != 0 and temp_room_status != 99 and self.errormsg != None:
-				print("Clear Error")
+				self.logger.debug(__name__ + ": Clear Error")
 				self.errormsg = None
 				self.selected_room_status = temp_room_status
 			self.logger.debug(__name__ + ": " + "Checking Room " + str(self.selected_room) + " current status is " + str(self.selected_room_status))
 
 	def start_room_check_thread(self):
+		# if self.selected_room != None and self.selected_room != "":
 		self.kill_threads = False
 		self.run_check_room_status = True
 		self.logger.debug(__name__ + ": " + "Room Check Thread Started")
