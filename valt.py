@@ -8,7 +8,6 @@ import http.client, urllib.error, urllib.request, urllib.parse
 import os, ssl, time, threading
 import logging
 
-
 class VALT:
 	def __init__(self, valt_address, valt_username, valt_password, timeout=5,logpath="ivs.log", **kwargs):
 		if (not os.environ.get('PYTHONHTTPSVERIFY', '') and getattr(ssl, '_create_unverified_context', None)):
@@ -75,7 +74,7 @@ class VALT:
 				self.errormsg = None
 				self.logger.info(__name__ + ": " + "Authenticated to VALT")
 				self.version = self.getversion()
-				self.logger.info(__name__ + ": " + "Valt Version: " + self.version)
+				self.logger.info(__name__ + ": " + "Valt Version: " + str(self.version))
 				self.reauthenticate(self.success_reauth_time)
 			else:
 				self.logger.error(__name__ + ": " + "Authentication FAILED")
@@ -303,12 +302,20 @@ class VALT:
 		if self.accesstoken == 0:
 			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
-			url = self.baseurl + 'admin/rooms/' + str(room) + '/cameras?access_token=' + self.accesstoken
-			data = self.send_to_valt(url)
-			if data['data']['cameras']:
-				return data['data']['cameras']
+			if self.selected_room != None:
+				url = self.baseurl + 'admin/rooms/' + str(room) + '/cameras?access_token=' + self.accesstoken
+				data = self.send_to_valt(url)
+				if type(data).__name__ == "dict":
+					if data['data']['cameras']:
+						return data['data']['cameras']
+					else:
+						self.handleerror("No Cameras")
+						return 0
+				else:
+					self.handleerror("No Cameras")
+					return 0
 			else:
-				self.handleerror("No Cameras")
+				self.handleerror("Invalid Room ID")
 				return 0
 
 	def getrooms(self):
@@ -334,27 +341,31 @@ class VALT:
 		if self.accesstoken == 0:
 			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
-			url = self.baseurl + 'schedule?access_token=' + self.accesstoken
-			roomsched = []
-			data = self.send_to_valt(url)
-			if data['data']['schedules']:
-				for schedule in data['data']['schedules']:
-					if schedule['room']['id'] == int(room):
-						templist = []
-						templist.append(schedule['start_at'])
-						templist.append(schedule['stop_at'])
-						templist.append(schedule['name'])
-						roomsched.append(templist)
-				roomsched.sort()
-				if roomsched:
-					if self.errormsg == "No Schedules Currently Set Up":
-						self.errormsg = None
-					return roomsched
+			if room != "" and room != None:
+				url = self.baseurl + 'schedule?access_token=' + self.accesstoken
+				roomsched = []
+				data = self.send_to_valt(url)
+				if data['data']['schedules']:
+					for schedule in data['data']['schedules']:
+						if schedule['room']['id'] == int(room):
+							templist = []
+							templist.append(schedule['start_at'])
+							templist.append(schedule['stop_at'])
+							templist.append(schedule['name'])
+							roomsched.append(templist)
+					roomsched.sort()
+					if roomsched:
+						if self.errormsg == "No Schedules Currently Set Up":
+							self.errormsg = None
+						return roomsched
+					else:
+						self.handleerror("No Schedules")
+						return 0
 				else:
 					self.handleerror("No Schedules")
 					return 0
 			else:
-				self.handleerror("No Schedules")
+				self.handleerror("Invalid Room ID")
 				return 0
 
 	def getroomname(self, room):
@@ -363,10 +374,13 @@ class VALT:
 		if self.accesstoken == 0:
 			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
-			url = self.baseurl + 'rooms/info/' + str(room) + '?access_token=' + self.accesstoken
-			data = self.send_to_valt(url)
-			if type(data).__name__ == "dict":
-				return data['data']['name']
+			if room != None and room != "" and room != "None":
+				url = self.baseurl + 'rooms/info/' + str(room) + '?access_token=' + self.accesstoken
+				data = self.send_to_valt(url)
+				if type(data).__name__ == "dict":
+					return data['data']['name']
+				else:
+					return 0
 			else:
 				return 0
 
@@ -539,6 +553,8 @@ class VALT:
 			self.errormsg = "Invalid Room ID"
 		elif str(e) == "Unable to apply preset":
 			pass
+		elif str(e) == "Unable to get camera presets":
+			pass
 		else:
 			self.errormsg = "An Unknown Error Occurred"
 			self.accesstoken = 0
@@ -553,6 +569,7 @@ class VALT:
 
 	def changeserver(self, valt_address, valt_username, valt_password):
 		if valt_address != "None" and valt_address != "" and valt_address is not None:
+			self.disconnect()
 			if valt_address.find("http", 0, 4) == -1:
 				self.baseurl = 'http://' + valt_address + '/api/v3/'
 			else:
@@ -643,6 +660,7 @@ class VALT:
 
 	def check_room_status(self):
 		while not self.kill_threads:
+			self.logger.debug(__name__ + ": Thread ID:" + str(threading.get_ident()))
 			self.logger.debug(__name__ + ": " + "Room Check Loop: " + str(self.run_check_room_status))
 			if self.run_check_room_status:
 				self.update_room_status()
@@ -655,12 +673,13 @@ class VALT:
 			if temp_room_status != self.selected_room_status:
 				self.selected_room_status = temp_room_status
 			if temp_room_status != 0 and temp_room_status != 99 and self.errormsg != None:
-				print("Clear Error")
+				self.logger.debug(__name__ + ": Clear Error")
 				self.errormsg = None
 				self.selected_room_status = temp_room_status
 			self.logger.debug(__name__ + ": " + "Checking Room " + str(self.selected_room) + " current status is " + str(self.selected_room_status))
 
 	def start_room_check_thread(self):
+		# if self.selected_room != None and self.selected_room != "":
 		self.kill_threads = False
 		self.run_check_room_status = True
 		self.logger.debug(__name__ + ": " + "Room Check Thread Started")
