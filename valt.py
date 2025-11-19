@@ -737,6 +737,10 @@ class VALT:
 		self._errormsg = newmsg
 		for callback in self._errormsg_observers:
 			callback(self._errormsg)
+	def bind_to_errormsg(self,callback):
+		self._errormsg_observers.append(callback)
+	def bind_to_errormg(self, callback):
+		self.bind_to_errormsg(callback)
 
 	@property
 	def accesstoken(self):
@@ -746,11 +750,9 @@ class VALT:
 		self._accesstoken = newmsg
 		for callback in self._accesstoken_observers:
 			callback(self._accesstoken)
+	def bind_to_accesstoken(self,callback):
+		self._accesstoken_observers.append(callback)
 
-	def bind_to_errormsg(self,callback):
-		self._errormsg_observers.append(callback)
-	def bind_to_errormg(self, callback):
-		self.bind_to_errormsg(callback)
 	def disconnect(self):
 		self.kill_threads = True
 
