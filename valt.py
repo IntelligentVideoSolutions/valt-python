@@ -1,7 +1,7 @@
 # VALT API Python Module
-# Version 3.1.1
-# Last Updated: 8/19/2025
-# Compatible with Valt Versions 6.3+
+# Version 3.1.2
+# Last Updated: 10/31/2025
+# Compatible with Valt Versions 6.4+
 
 import json
 import http.client, urllib.error, urllib.request, urllib.parse
@@ -295,6 +295,9 @@ class VALT:
 					return False
 
 	def getcameras(self, room):
+		return self.get_cameras(room)
+
+	def get_cameras(self, room):
 		# Function to return a list of all cameras in the specified room.
 		# Returns a list of cameras if successful. Each list item is actually a dictionary containing information about that camera.
 		# Returns 0 on failure.
@@ -302,7 +305,7 @@ class VALT:
 		if self.accesstoken == 0:
 			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
-			if self.selected_room != None:
+			if room != None:
 				url = self.baseurl + 'admin/rooms/' + str(room) + '/cameras?access_token=' + self.accesstoken
 				data = self.send_to_valt(url)
 				if type(data).__name__ == "dict":
@@ -316,6 +319,26 @@ class VALT:
 					return 0
 			else:
 				self.handleerror("Invalid Room ID")
+				return 0
+
+	def get_all_cameras(self):
+		# Function to return a list of all cameras.
+		# Returns a list of cameras if successful. Each list item is actually a dictionary containing information about that camera.
+		# Returns 0 on failure.
+		# Returns 99 if not currently authenticated to VALT
+		if self.accesstoken == 0:
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
+		else:
+			url = self.baseurl + 'admin/cameras?access_token=' + self.accesstoken
+			data = self.send_to_valt(url)
+			if type(data).__name__ == "dict":
+				if data['data']['cameras']:
+					return data['data']['cameras']
+				else:
+					self.handleerror("No Cameras")
+					return 0
+			else:
+				self.handleerror("No Cameras")
 				return 0
 
 	def getrooms(self):
@@ -994,7 +1017,6 @@ class VALT:
 			self.handleerror("Unable to create preset")
 			return 0
 
-
 	def apply_camera_preset(self, camera_id, preset_id):
 		# Function to apply an existing preset to a given camera.
 		# Returns 1 on success or 0 on failure.
@@ -1012,7 +1034,6 @@ class VALT:
 			self.handleerror("Unable to apply preset")
 			return 0
 
-
 	def delete_camera_preset(self, camera_id, preset_id):
 		# Function to delete an existing preset from a given camera.
 		# Returns deleted preset ID or 0 on failure.
@@ -1029,3 +1050,36 @@ class VALT:
 		else:
 			self.handleerror("Unable to delete preset")
 			return 0
+
+	def log_level(self, loglevel):
+		match loglevel:
+			case "debug":
+				self.logger.setLevel(10)
+			case "info":
+				self.logger.setLevel(20)
+			case "warn":
+				self.logger.setLevel(30)
+			case "error":
+				self.logger.setLevel(40)
+			case "critical":
+				self.logger.setLevel(50)
+
+	def get_media_servers(self):
+		# Function to return a list of all cameras.
+		# Returns a list of cameras if successful. Each list item is actually a dictionary containing information about that camera.
+		# Returns 0 on failure.
+		# Returns 99 if not currently authenticated to VALT
+		if self.accesstoken == 0:
+			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
+		else:
+			url = self.baseurl + 'admin/wowza?access_token=' + self.accesstoken
+			data = self.send_to_valt(url)
+			if type(data).__name__ == "dict":
+				if data['data']['media_servers']:
+					return data['data']['media_servers']
+				else:
+					self.handleerror("No Media Servers")
+					return 0
+			else:
+				self.handleerror("No Media Servers")
+				return 0
