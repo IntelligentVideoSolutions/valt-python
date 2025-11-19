@@ -34,7 +34,8 @@ class VALT:
 		self._errormsg_observers = []
 		self._errormsg = None
 		self.testmsg = None
-		self.accesstoken = 0
+		self._accesstoken = 0
+		self._accesstoken_observers = []
 		self.httptimeout = int(timeout)
 		self.kill_threads = False
 		self.auth()
@@ -736,6 +737,16 @@ class VALT:
 		self._errormsg = newmsg
 		for callback in self._errormsg_observers:
 			callback(self._errormsg)
+
+	@property
+	def accesstoken(self):
+		return self._accesstoken
+	@accesstoken.setter
+	def accesstoken(self,newmsg):
+		self._accesstoken = newmsg
+		for callback in self._accesstoken_observers:
+			callback(self._accesstoken)
+
 	def bind_to_errormsg(self,callback):
 		self._errormsg_observers.append(callback)
 	def bind_to_errormg(self, callback):
