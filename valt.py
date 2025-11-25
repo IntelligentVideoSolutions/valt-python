@@ -308,7 +308,7 @@ class VALT:
 		if self.accesstoken == 0:
 			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
-			if room != None:
+			if room != None and room != "" and room != "None":
 				url = self.baseurl + 'admin/rooms/' + str(room) + '/cameras?access_token=' + self.accesstoken
 				data = self.send_to_valt(url)
 				if type(data).__name__ == "dict":
@@ -367,7 +367,7 @@ class VALT:
 		if self.accesstoken == 0:
 			self.logger.error(__name__ + ": " + "Not Currently Authenticated to VALT")
 		else:
-			if room != "" and room != None:
+			if room != None and room != "" and room != "None":
 				url = self.baseurl + 'schedule?access_token=' + self.accesstoken
 				roomsched = []
 				data = self.send_to_valt(url)
