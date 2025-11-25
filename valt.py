@@ -238,6 +238,8 @@ class VALT:
 					if markertime > 0:
 						if self.version[0] == "6":
 							values ={"recordTime": markertime, "recordId": self.getrecordingid(room), "template":{"id": template_id, "data":template_data, "name": markername}}
+							# if "author" in kwargs:
+							# 	values["author"] = kwargs["author"]
 						elif self.version[0] == "5":
 							values = {"event": markername, "time": markertime, "color": color}
 						data = self.send_to_valt(url, values=values)
