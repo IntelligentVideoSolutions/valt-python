@@ -37,7 +37,6 @@ class VALT(ValtCommunication,ValtLog,ValtRecording,ValtUpload,ValtDownload,ValtR
 		self.failure_reauth_time = 30
 		self._errormsg_observers = []
 		self._errormsg = None
-		self.testmsg = None
 		self._accesstoken = 0
 		self._accesstoken_observers = []
 		self.httptimeout = int(timeout)
