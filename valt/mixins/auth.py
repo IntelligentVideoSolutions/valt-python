@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 import json
 import http.client
+import logging
 import ssl as _ssl
 import warnings
 from urllib import error, request
@@ -69,17 +70,21 @@ class ValtAuth:
 		self.auth()
 		self.start_room_check_thread()
 
-	def test_connection(self: VALT, valt_address, valt_username, valt_password):
+	@staticmethod
+	def test_connection(valt_address, valt_username, valt_password, timeout=5):
+		# Standalone check: does not require an existing VALT instance and has no
+		# side effects (no accesstoken/observer changes, no reauthenticate loop).
+		logger = logging.getLogger(__name__)
 		values = {"username": valt_username, "password": valt_password}
 		params = json.dumps(values).encode('utf-8')
 		if valt_address.find("http", 0, 4) == -1:
 			valt_baseurl = 'http://' + valt_address + '/api/v3/'
 		else:
 			valt_baseurl = valt_address + '/api/v3/'
-		self.logger.debug(__name__ + ": " + "Testing Connection to VALT server")
-		self.logger.debug(__name__ + ": " + valt_baseurl)
-		self.logger.debug(__name__ + ": " + valt_username)
-		self.logger.debug(__name__ + ": ***")
+		logger.debug(__name__ + ": " + "Testing Connection to VALT server")
+		logger.debug(__name__ + ": " + valt_baseurl)
+		logger.debug(__name__ + ": " + valt_username)
+		logger.debug(__name__ + ": ***")
 
 		ctx = _ssl.create_default_context()
 		ctx.check_hostname = False
@@ -87,26 +92,23 @@ class ValtAuth:
 		try:
 			req = request.Request(valt_baseurl + 'login')
 			req.add_header('Content-Type', 'application/json')
-			response = request.urlopen(req, params, timeout=self.httptimeout, context=ctx)
+			request.urlopen(req, params, timeout=timeout, context=ctx)
 		except error.HTTPError as e:
-			self.logger.warning(__name__ + ": " + str(e))
+			logger.warning(__name__ + ": " + str(e))
 			if str(e) == "HTTP Error 401: Unauthorized":
-				self.testmsg = "Invalid Username or Password"
-			return False
+				return False, "Invalid Username or Password"
+			return False, "Unable to Connect"
 		except error.URLError as e:
-			self.logger.warning(__name__ + ": " + str(e))
-			self.testmsg = "Unable to Connect"
-			return False
+			logger.warning(__name__ + ": " + str(e))
+			return False, "Unable to Connect"
 		except http.client.HTTPException as e:
-			self.logger.warning(__name__ + ": " + str(e))
-			self.testmsg = "Unable to Connect"
-			return False
+			logger.warning(__name__ + ": " + str(e))
+			return False, "Unable to Connect"
 		except Exception as e:
-			self.logger.warning(__name__ + ": " + str(e))
-			self.testmsg = "Unable to Connect"
-			return False
+			logger.warning(__name__ + ": " + str(e))
+			return False, "Unable to Connect"
 		else:
-			return True
+			return True, None
 	@property
 	def accesstoken(self: VALT):
 		return self._accesstoken
